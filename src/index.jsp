@@ -1,5 +1,11 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ include file="/WEB-INF/common.jspf" %>
+<%
+    if ("phase2Query".equals(request.getParameter("action"))) {
+        response.sendRedirect("phase2Query.jsp");
+        return;
+    }
+%>
 <!doctype html>
 <html lang="ko">
 <head>
@@ -35,17 +41,25 @@
 
         <div class="section-heading"><div><p class="eyebrow">WORKSPACE</p><h2>우리의 연구 공간</h2></div><span class="section-note">읽는 순간부터 기록이 되도록</span></div>
         <form method="get" class="workspace-grid">
-            <section class="panel">
-                <div class="panel-heading"><span class="section-icon" aria-hidden="true">01</span><div><h3>사용자와 그룹</h3><p>함께 읽을 사람들과 만나는 곳</p></div></div>
-                <div class="menu-list">
-                    <button class="menu-item" formaction="switchUser.jsp"><span class="menu-number">01</span><span>사용자 전환<small>다른 사용자로 참여하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                    <button class="menu-item" formaction="showMyGroups.jsp"><span class="menu-number">02</span><span>내 그룹 조회<small>참여 중인 스터디 살펴보기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                    <button class="menu-item" formaction="switchGroup.jsp"><span class="menu-number">03</span><span>현재 그룹 변경<small>다른 스터디로 이동하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                    <button class="menu-item" formaction="createGroup.jsp"><span class="menu-number">04</span><span>그룹 생성<small>새로운 스터디 시작하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                    <button class="menu-item" formaction="joinGroup.jsp"><span class="menu-number">05</span><span>그룹 가입<small>관심 있는 스터디에 함께하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                    <button class="menu-item" formaction="showGroupMembers.jsp"><span class="menu-number">06</span><span>현재 그룹원 조회<small>함께하는 멤버 확인하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
-                </div>
-            </section>
+            <div class="panel-stack">
+                <section class="panel">
+                    <div class="panel-heading"><span class="section-icon" aria-hidden="true">01</span><div><h3>사용자와 그룹</h3><p>함께 읽을 사람들과 만나는 곳</p></div></div>
+                    <div class="menu-list">
+                        <button class="menu-item" formaction="switchUser.jsp"><span class="menu-number">01</span><span>사용자 전환<small>다른 사용자로 참여하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                        <button class="menu-item" formaction="showMyGroups.jsp"><span class="menu-number">02</span><span>내 그룹 조회<small>참여 중인 스터디 살펴보기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                        <button class="menu-item" formaction="switchGroup.jsp"><span class="menu-number">03</span><span>현재 그룹 변경<small>다른 스터디로 이동하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                        <button class="menu-item" formaction="createGroup.jsp"><span class="menu-number">04</span><span>그룹 생성<small>새로운 스터디 시작하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                        <button class="menu-item" formaction="joinGroup.jsp"><span class="menu-number">05</span><span>그룹 가입<small>관심 있는 스터디에 함께하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                        <button class="menu-item" formaction="showGroupMembers.jsp"><span class="menu-number">06</span><span>현재 그룹원 조회<small>함께하는 멤버 확인하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                    </div>
+                </section>
+                <section class="panel">
+                    <div class="panel-heading"><span class="section-icon" aria-hidden="true">03</span><div><h3>검색</h3><p>논문과 그룹의 활동 살펴보기</p></div></div>
+                    <div class="menu-list">
+                        <button class="menu-item" name="action" value="phase2Query" formaction="index.jsp"><span class="menu-number">17</span><span>Phase2 쿼리 10개<small>실행할 쿼리 선택하기</small></span><span class="menu-arrow" aria-hidden="true">↗</span></button>
+                    </div>
+                </section>
+            </div>
 
             <div class="panel-stack">
                 <section class="panel">

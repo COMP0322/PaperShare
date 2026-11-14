@@ -7,7 +7,7 @@
     private Connection openDb() throws SQLException, ClassNotFoundException {
         Class.forName("oracle.jdbc.OracleDriver");
         return DriverManager.getConnection(
-                env("DB_URL", "jdbc:oracle:thin:@//127.0.0.1:1522/XE"),
+                env("DB_URL", "jdbc:oracle:thin:@//127.0.0.1:1522/FREEPDB1"),
                 env("DB_USER", "system"), env("DB_PASSWORD", "oracle"));
     }
 
