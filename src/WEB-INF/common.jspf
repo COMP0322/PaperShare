@@ -1,0 +1,30 @@
+<%@ page import="java.net.InetAddress,java.sql.*,java.util.ArrayList,java.util.List" %>
+<%!
+    private String env(String name, String fallback) {
+        return System.getenv().getOrDefault(name, fallback);
+    }
+
+    private Connection openDb() throws SQLException, ClassNotFoundException {
+        Class.forName("oracle.jdbc.OracleDriver");
+        return DriverManager.getConnection(
+                env("DB_URL", "jdbc:oracle:thin:@//127.0.0.1:1522/XE"),
+                env("DB_USER", "system"), env("DB_PASSWORD", "oracle"));
+    }
+
+    private String escapeHtml(String value) {
+        return value == null ? "" : value.replace("&", "&amp;")
+                .replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+%>
+<%
+    response.setHeader("Cache-Control", "no-store");
+    if (!InetAddress.getByName(request.getRemoteAddr()).isLoopbackAddress()) {
+        response.sendError(403);
+        return;
+    }
+
+    if (session.getAttribute("userId") == null) {
+        session.setAttribute("userId", 1);
+    }
+%>
