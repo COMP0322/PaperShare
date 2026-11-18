@@ -1,4 +1,4 @@
-<%@ page import="java.net.InetAddress,java.sql.*,java.util.ArrayList,java.util.List" %>
+<%@ page import="java.sql.*,java.util.ArrayList,java.util.List,jakarta.servlet.http.HttpSession" %>
 <%!
     private String env(String name, String fallback) {
         return System.getenv().getOrDefault(name, fallback);
@@ -7,7 +7,7 @@
     private Connection openDb() throws SQLException, ClassNotFoundException {
         Class.forName("oracle.jdbc.OracleDriver");
         return DriverManager.getConnection(
-                env("DB_URL", "jdbc:oracle:thin:@//127.0.0.1:1522/FREEPDB1"),
+                env("DB_URL", "jdbc:oracle:thin:@//127.0.0.1:1522/XE"),
                 env("DB_USER", "system"), env("DB_PASSWORD", "oracle"));
     }
 
@@ -16,14 +16,31 @@
                 .replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&#39;");
     }
-%>
-<%
-    response.setHeader("Cache-Control", "no-store");
-    if (!InetAddress.getByName(request.getRemoteAddr()).isLoopbackAddress()) {
-        response.sendError(403);
-        return;
+
+    private PreparedStatement prepare(Connection db, String sql, Object... values) throws SQLException {
+        PreparedStatement s = db.prepareStatement(sql);
+        for (int i = 0; i < values.length; i++) s.setObject(i + 1, values[i]);
+        return s;
     }
 
+    private void updateSQL(Connection db, String sql, Object... values) throws SQLException {
+        try (PreparedStatement s = prepare(db, sql, values)) {
+            s.executeUpdate();
+        }
+    }
+
+    private Object currentGroup(Connection db, HttpSession session) throws SQLException {
+        Object group = session.getAttribute("groupId");
+        if (group != null) return group;
+        try (PreparedStatement s = prepare(db,
+                "SELECT group_id FROM MEMBER_OF WHERE user_id = ? ORDER BY group_id", session.getAttribute("userId"));
+             ResultSet r = s.executeQuery()) {
+            return r.next() ? r.getInt(1) : null;
+        }
+    }
+%>
+<%
+    request.setCharacterEncoding("UTF-8");
     if (session.getAttribute("userId") == null) {
         session.setAttribute("userId", 1);
     }
