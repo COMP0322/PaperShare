@@ -86,7 +86,6 @@
                         s.executeUpdate();
                     }
 
-                    // 바뀐 값으로 다시 읽어 오기
                     try (PreparedStatement s = db.prepareStatement(checkSql)) {
                         s.setInt(1, groupPaperId);
                         s.setInt(2, groupId);
