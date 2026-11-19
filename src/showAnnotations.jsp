@@ -1,5 +1,41 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ include file="/WEB-INF/common.jspf" %>
+<%!
+    private String commentHtml(String[] c, int depth) {
+        boolean edited = c[6] != null && !c[6].equals(c[5]);
+        return "<div class=\"thread-item\" style=\"margin-left: " + (depth * 28) + "px\">"
+                + "<div class=\"thread-meta\"><span class=\"thread-arrow\">↳</span> "
+                + "<strong>#" + escapeHtml(c[0]) + " " + escapeHtml(c[1]) + "</strong>"
+                + " · " + escapeHtml(c[5]) + (edited ? " (수정됨 " + escapeHtml(c[6]) + ")" : "")
+                + "</div>"
+                + "<div class=\"thread-body\">" + escapeHtml(c[4]) + "</div>"
+                + "</div>";
+    }
+
+    private void renderReplies(StringBuilder out, List<String[]> comments, String parentNo, int depth) {
+        for (String[] c : comments) {
+            if (parentNo.equals(c[3])) {
+                out.append(commentHtml(c, depth));
+                renderReplies(out, comments, c[0], depth + 1);
+            }
+        }
+    }
+
+    private String safeColor(String color) {
+        if (color == null) return "#fff3a3";
+        switch (color.toLowerCase()) {
+            case "yellow": return "#fff3a3";
+            case "green":  return "#cdeccd";
+            case "blue":   return "#cfe3ff";
+            case "pink":   return "#ffd6e5";
+            case "orange": return "#ffe1bf";
+            case "purple": return "#e5d9ff";
+            case "red":    return "#ffd1d1";
+            default:
+                return color.matches("#[0-9a-fA-F]{3,6}") ? color : "#fff3a3";
+        }
+    }
+%>
 <%
     int userId = (Integer) session.getAttribute("userId");
     Integer groupId = (Integer) session.getAttribute("groupId");
@@ -10,7 +46,6 @@
     List<String[]> highlights = new ArrayList<>();
     List<String[]> comments = new ArrayList<>();
     String message = null;
-
 
     try (Connection db = openDb()) {
         if (groupId == null) {
@@ -26,12 +61,10 @@
             }
         }
 
-
         if (groupId == null) {
             message = "먼저 그룹을 생성하거나 가입하세요.";
         } else if (groupPaperParam == null || !groupPaperParam.matches("\\d{1,9}")) {
             message = "논문 리뷰 화면에서 논문을 선택한 뒤 들어오세요.";
-
         } else {
             groupPaperId = Integer.parseInt(groupPaperParam);
 
@@ -57,7 +90,8 @@
                 message = "현재 그룹에서 해당 논문을 찾을 수 없습니다.";
             } else {
                 String highlightSql = """
-                        SELECT H.highlight_no, U.name, H.page_no, H.start_position, H.end_position, H.color, H.selected_text, TO_CHAR(H.created_at, 'YYYY-MM-DD HH24:MI')
+                        SELECT H.highlight_no, U.name, H.page_no, H.start_position, H.end_position,
+                               H.color, H.selected_text, TO_CHAR(H.created_at, 'YYYY-MM-DD HH24:MI')
                         FROM HIGHLIGHT H JOIN USERS U ON U.user_id = H.user_id
                         WHERE H.group_paper_id = ?
                         ORDER BY H.highlight_no
@@ -77,46 +111,37 @@
 
                 String commentSql = """
                         SELECT C.comment_no, U.name, C.highlight_no, C.parent_comment_no, C.content,
-                            TO_CHAR(C.created_at, 'YYYY-MM-DD HH24:MI'),
-                            TO_CHAR(C.updated_at, 'YYYY-MM-DD HH24:MI')
+                               TO_CHAR(C.created_at, 'YYYY-MM-DD HH24:MI'),
+                               TO_CHAR(C.updated_at, 'YYYY-MM-DD HH24:MI')
                         FROM PAPER_COMMENT C JOIN USERS U ON U.user_id = C.user_id
                         WHERE C.group_paper_id = ?
                         ORDER BY C.comment_no
                         """;
-                try(PreparedStatement s = db.prepareStatement(commentSql)){
+                try (PreparedStatement s = db.prepareStatement(commentSql)) {
                     s.setInt(1, groupPaperId);
                     try (ResultSet r = s.executeQuery()) {
                         while (r.next()) {
-                            String highlightNo = r.getString(3);
-                            String parentNo = r.getString(4);
-                            String kind;
-                            if (parentNo != null) {
-                                kind = "#" + parentNo + "에 답글";
-                            } else if (highlightNo != null) {
-                                kind = "하이라이트 #" + highlightNo + " 댓글";
-                            } else {
-                                kind = "일반 메모";
+                            String[] c = new String[7];
+                            for (int i = 0; i < c.length; i++) {
+                                c[i] = r.getString(i + 1);
                             }
-                            comments.add(new String[] {
-                                    r.getString(1), r.getString(2), kind,
-                                    r.getString(5), r.getString(6), r.getString(7)
-                            });
+                            comments.add(c);
                         }
                     }
                 }
-                if (highlights.isEmpty() && comments.isEmpty()){
+
+                if (highlights.isEmpty() && comments.isEmpty()) {
                     message = "아직 이 논문에 하이라이트와 댓글이 없습니다.";
                 }
             }
         }
-    } catch (SQLException | ClassNotFoundException e){
+    } catch (SQLException | ClassNotFoundException e) {
         response.setStatus(503);
-        application.log("하이라이트와 댓글 조회 실패", e);
+        application.log("하이라이트·댓글 조회 실패", e);
         message = "하이라이트와 댓글을 불러오지 못했습니다. Tomcat 실행 로그와 DB 연결 설정을 확인하세요.";
     }
 
     String backHref = (title != null) ? "paperDetail.jsp?groupPaperId=" + groupPaperId : "paperDetail.jsp";
-
 %>
 <!doctype html>
 <html lang="ko">
@@ -126,12 +151,17 @@
     <title>하이라이트·댓글 조회 - PaperShare</title>
     <link rel="stylesheet" href="assets/style.css">
     <style>
-        .annotation-panel { margin-top: 24px; padding: 24px; overflow-x: auto; }
+        .annotation-panel { margin-top: 24px; padding: 24px; }
         .annotation-panel h2 { margin: 0 0 16px; font-size: 1.2rem; }
-        .annotation-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-        .annotation-table th, .annotation-table td { padding: 10px 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.08); text-align: left; vertical-align: top; }
-        .annotation-table th { font-weight: 600; white-space: nowrap; }
-        .annotation-table .num { white-space: nowrap; }
+        .hl-card { padding: 16px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
+        .hl-card:last-child { border-bottom: none; }
+        .hl-meta { font-size: 0.9rem; color: #777; margin-bottom: 8px; }
+        .hl-text { display: inline; padding: 2px 4px; line-height: 1.8; }
+        .thread { margin-top: 10px; }
+        .thread-item { padding: 8px 0 8px 12px; border-left: 2px solid rgba(0, 0, 0, 0.08); margin-top: 6px; }
+        .thread-meta { font-size: 0.85rem; color: #777; }
+        .thread-arrow { color: #aaa; }
+        .thread-body { margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -151,53 +181,45 @@
 
     <% if (title != null) { %>
     <section class="panel annotation-panel">
-        <h2>하이라이트 <%= highlights.size() %>개</h2>
+        <h2>하이라이트 <%= highlights.size() %>개 · 댓글 <%= comments.size() %>개</h2>
         <% if (highlights.isEmpty()) { %>
         <p class="muted">아직 하이라이트가 없습니다.</p>
-        <% } else { %>
-        <table class="annotation-table">
-            <thead>
-            <tr><th>번호</th><th>작성자</th><th>페이지</th><th>위치</th><th>색상</th><th>선택한 텍스트</th><th>작성일</th></tr>
-            </thead>
-            <tbody>
-            <% for (String[] h : highlights) { %>
-            <tr>
-                <td class="num">#<%= escapeHtml(h[0]) %></td>
-                <td><%= escapeHtml(h[1]) %></td>
-                <td class="num"><%= escapeHtml(h[2]) %></td>
-                <td class="num"><%= escapeHtml(h[3]) %> ~ <%= escapeHtml(h[4]) %></td>
-                <td><%= escapeHtml(h[5]) %></td>
-                <td><%= escapeHtml(h[6]) %></td>
-                <td class="num"><%= escapeHtml(h[7]) %></td>
-            </tr>
-            <% } %>
-            </tbody>
-        </table>
+        <% } %>
+        <% for (String[] h : highlights) { %>
+        <div class="hl-card">
+            <div class="hl-meta"><strong>#<%= escapeHtml(h[0]) %> <%= escapeHtml(h[1]) %></strong> · p.<%= escapeHtml(h[2]) %> · <%= escapeHtml(h[3]) %>~<%= escapeHtml(h[4]) %> · <%= escapeHtml(h[7]) %></div>
+            <mark class="hl-text" style="background: <%= safeColor(h[5]) %>;"><%= escapeHtml(h[6]) %></mark>
+            <div class="thread">
+                <%
+                    StringBuilder out2 = new StringBuilder();
+                    for (String[] c : comments) {
+                        if (c[3] == null && h[0].equals(c[2])) {
+                            out2.append(commentHtml(c, 0));
+                            renderReplies(out2, comments, c[0], 1);
+                        }
+                    }
+                %>
+                <%= out2 %>
+            </div>
+        </div>
         <% } %>
     </section>
 
     <section class="panel annotation-panel">
-        <h2>댓글 <%= comments.size() %>개</h2>
-        <% if (comments.isEmpty()) { %>
-        <p class="muted">아직 댓글이 없습니다.</p>
+        <h2>일반 메모</h2>
+        <%
+            StringBuilder memos = new StringBuilder();
+            for (String[] c : comments) {
+                if (c[3] == null && c[2] == null) {
+                    memos.append(commentHtml(c, 0));
+                    renderReplies(memos, comments, c[0], 1);
+                }
+            }
+        %>
+        <% if (memos.length() == 0) { %>
+        <p class="muted">아직 일반 메모가 없습니다.</p>
         <% } else { %>
-        <table class="annotation-table">
-            <thead>
-            <tr><th>번호</th><th>작성자</th><th>종류</th><th>내용</th><th>작성일</th><th>수정일</th></tr>
-            </thead>
-            <tbody>
-            <% for (String[] c : comments) { %>
-            <tr>
-                <td class="num">#<%= escapeHtml(c[0]) %></td>
-                <td><%= escapeHtml(c[1]) %></td>
-                <td class="num"><%= escapeHtml(c[2]) %></td>
-                <td><%= escapeHtml(c[3]) %></td>
-                <td class="num"><%= escapeHtml(c[4]) %></td>
-                <td class="num"><%= c[5] == null ? "-" : escapeHtml(c[5]) %></td>
-            </tr>
-            <% } %>
-            </tbody>
-        </table>
+        <div class="thread"><%= memos %></div>
         <% } %>
     </section>
     <% } %>
