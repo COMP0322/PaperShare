@@ -2,8 +2,15 @@
 <%@ include file="/WEB-INF/common.jspf" %>
 <%!
     private String commentHtml(String[] c, int depth) {
+        String indent = "<div class=\"thread-item\" style=\"margin-left: " + (depth * 28) + "px\">";
+        if ("(삭제된 댓글입니다)".equals(c[4])) {
+            return indent
+                    + "<div class=\"thread-meta\"><span class=\"thread-arrow\">↳</span> #" + escapeHtml(c[0]) + "</div>"
+                    + "<div class=\"thread-body\" style=\"color: #999; font-style: italic;\">삭제된 댓글입니다.</div>"
+                    + "</div>";
+        }
         boolean edited = c[6] != null && !c[6].equals(c[5]);
-        return "<div class=\"thread-item\" style=\"margin-left: " + (depth * 28) + "px\">"
+        return indent
                 + "<div class=\"thread-meta\"><span class=\"thread-arrow\">↳</span> "
                 + "<strong>#" + escapeHtml(c[0]) + " " + escapeHtml(c[1]) + "</strong>"
                 + " · " + escapeHtml(c[5]) + (edited ? " (수정됨 " + escapeHtml(c[6]) + ")" : "")
