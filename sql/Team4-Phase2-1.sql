@@ -18,8 +18,8 @@ CREATE TABLE PAPER (
     paper_id        NUMBER          NOT NULL,
     title           VARCHAR2(300)   NOT NULL,
     authors         VARCHAR2(300)   NOT NULL,
-    year            NUMBER(4)       NOT NULL,   -- 연도보다는 올라온 날짜가 더 나을거 같아요
-    DOI             VARCHAR2(100)   NOT NULL,   -- DOI 자체가 논문 식별 번호라는데 이걸 키로 쓰는건 어떨까요?
+    year            NUMBER(4)       NOT NULL,
+    DOI             VARCHAR2(100)   NOT NULL,
     url             VARCHAR2(100)   NOT NULL,
     abstract        VARCHAR2(4000)  NOT NULL,
     PRIMARY KEY (paper_id),
@@ -38,7 +38,7 @@ CREATE TABLE GROUP_PAPER (
     paper_id        NUMBER          NOT NULL,
     status          VARCHAR2(30)    NOT NULL,
     added_date      DATE            NOT NULL,
-    started_date    DATE,                       -- added_date와 구분할 필요가 있을까요?
+    started_date    DATE,
     completed_date  DATE,
     notes           VARCHAR2(4000)  NOT NULL,
     PRIMARY KEY (group_paper_id),
@@ -85,7 +85,7 @@ CREATE TABLE HIGHLIGHT (
     start_position  NUMBER          NOT NULL,
     end_position    NUMBER          NOT NULL,
     color           VARCHAR2(30)    NOT NULL,
-    selected_text   VARCHAR2(1000)  NOT NULL,   -- start, end 위치면 충분할거 같아요. 중복 요소라서
+    selected_text   VARCHAR2(1000)  NOT NULL,
     created_at      TIMESTAMP       NOT NULL,
     PRIMARY KEY (group_paper_id, highlight_no),
     FOREIGN KEY (group_paper_id)
@@ -117,3 +117,12 @@ CREATE TABLE PAPER_COMMENT (
         REFERENCES PAPER_COMMENT(group_paper_id, comment_no),
     CHECK (updated_at >= created_at)
 );
+
+CREATE SEQUENCE study_group_seq
+    NOCACHE;
+
+CREATE SEQUENCE paper_seq
+    NOCACHE;
+
+CREATE SEQUENCE group_paper_seq
+    NOCACHE;

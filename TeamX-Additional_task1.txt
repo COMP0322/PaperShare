@@ -1,0 +1,11 @@
+1. 동시 등록 시 ID 충돌
+
+원인
+
+그룹 생성(04번)과 논문 생성(08번)에서 MAX(ID) + 1로 새 ID를 계산함.
+두 요청이 동시에 같은 최대값을 읽으면 같은 ID를 사용해 한쪽 등록이 기본키 중복 오류(ORA-00001)로 실패함.
+
+해결
+
+Oracle의 SEQUENCE를 사용하여 해결함.
+그룹, 논문, 그룹 논문 연결의 ID를 각각 study_group_seq.NEXTVAL, paper_seq.NEXTVAL, group_paper_seq.NEXTVAL로 발급하도록 변경.

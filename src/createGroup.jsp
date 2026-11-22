@@ -13,7 +13,7 @@
         try (Connection db = openDb()) {
             db.setAutoCommit(false);
             try {
-                int group = querySQL(db, "SELECT NVL(MAX(group_id), 0) + 1 FROM STUDY_GROUP");
+                int group = querySQL(db, "SELECT study_group_seq.NEXTVAL FROM dual");
                 updateSQL(db, "INSERT INTO STUDY_GROUP VALUES (?, ?, SYSTIMESTAMP, ?)",
                         group,
                         request.getParameter("groupName"),

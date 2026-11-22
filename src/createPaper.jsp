@@ -13,7 +13,7 @@
         try (Connection db = openDb()) {
             db.setAutoCommit(false);
             try {
-                int paper = querySQL(db, "SELECT NVL(MAX(paper_id), 0) + 1 FROM PAPER");
+                int paper = querySQL(db, "SELECT paper_seq.NEXTVAL FROM dual");
                 updateSQL(db, "INSERT INTO PAPER VALUES (?, ?, ?, ?, ?, ?, ?)", paper,
                         request.getParameter("title"), request.getParameter("authors"),
                         request.getParameter("year"), request.getParameter("doi"),
@@ -22,9 +22,8 @@
                 updateSQL(db, """
                         INSERT INTO GROUP_PAPER
                         (group_paper_id, group_id, paper_id, status, added_date, notes)
-                        VALUES (?, ?, ?, '읽음', SYSDATE, ?)
-                        """, querySQL(db, "SELECT NVL(MAX(group_paper_id), 0) + 1 FROM GROUP_PAPER"),
-                        currentGroup(db, session), paper, request.getParameter("notes"));
+                        VALUES (group_paper_seq.NEXTVAL, ?, ?, '읽음', SYSDATE, ?)
+                        """, currentGroup(db, session), paper, request.getParameter("notes"));
 
                 db.commit();
             } finally {
