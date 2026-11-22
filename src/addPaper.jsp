@@ -32,26 +32,15 @@
                 if (notes == null || notes.isBlank()) {
                     message = "그룹 메모를 입력하세요.";
                 } else {
-                    int newId = 1;
-                    try (PreparedStatement s = db.prepareStatement(
-                            "SELECT NVL(MAX(group_paper_id), 0) + 1 FROM GROUP_PAPER")) {
-                        try (ResultSet r = s.executeQuery()) {
-                            if (r.next()) {
-                                newId = r.getInt(1);
-                            }
-                        }
-                    }
-
                     String insertSql = """
                             INSERT INTO GROUP_PAPER
                             (group_paper_id, group_id, paper_id, status, added_date, notes)
-                            VALUES (?, ?, ?, '읽음', SYSDATE, ?)
+                            VALUES (group_paper_seq.NEXTVAL, ?, ?, '읽음', SYSDATE, ?)
                             """;
                     try (PreparedStatement s = db.prepareStatement(insertSql)) {
-                        s.setInt(1, newId);
-                        s.setInt(2, groupId);
-                        s.setInt(3, paperId);
-                        s.setString(4, notes);
+                        s.setInt(1, groupId);
+                        s.setInt(2, paperId);
+                        s.setString(3, notes);
                         s.executeUpdate();
                     }
                     message = "논문을 그룹에 추가했어요.";
