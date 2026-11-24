@@ -70,77 +70,97 @@
                     } else if (content.length() > 1000) {
                         message = "내용은 1000자 이하로 입력하세요.";
                         ok = false;
-                    }
-
-                    if (ok && highlightParam != null && !highlightParam.isEmpty()) {
-                        if (!highlightParam.matches("\\d{1,9}")) {
-                            message = "하이라이트 번호가 올바르지 않습니다.";
-                            ok = false;
-                        } else {
-                            highlightNo = Integer.parseInt(highlightParam);
-                            try (PreparedStatement s = db.prepareStatement(
-                                    "SELECT 1 FROM HIGHLIGHT WHERE group_paper_id = ? AND highlight_no = ?")) {
-                                s.setInt(1, groupPaperId);
-                                s.setInt(2, highlightNo);
-                                try (ResultSet r = s.executeQuery()) {
-                                    if (!r.next()) {
-                                        message = "이 논문에 없는 하이라이트입니다.";
-                                        ok = false;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (ok && parentParam != null && !parentParam.isEmpty()) {
-                        if (!parentParam.matches("\\d{1,9}")) {
-                            message = "부모 댓글 번호가 올바르지 않습니다.";
-                            ok = false;
-                        } else {
-                            parentNo = Integer.parseInt(parentParam);
-                            try (PreparedStatement s = db.prepareStatement(
-                                    "SELECT 1 FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
-                                s.setInt(1, groupPaperId);
-                                s.setInt(2, parentNo);
-                                try (ResultSet r = s.executeQuery()) {
-                                    if (!r.next()) {
-                                        message = "이 논문에 없는 댓글에는 답글을 달 수 없습니다.";
-                                        ok = false;
-                                    }
-                                }
-                            }
-                        }
+                    } else if (highlightParam != null && !highlightParam.isEmpty() && !highlightParam.matches("\\d{1,9}")) {
+                        message = "하이라이트 번호가 올바르지 않습니다.";
+                        ok = false;
+                    } else if (parentParam != null && !parentParam.isEmpty() && !parentParam.matches("\\d{1,9}")) {
+                        message = "부모 댓글 번호가 올바르지 않습니다.";
+                        ok = false;
                     }
 
                     if (ok) {
+                        if (highlightParam != null && !highlightParam.isEmpty()) highlightNo = Integer.parseInt(highlightParam);
+                        if (parentParam != null && !parentParam.isEmpty()) parentNo = Integer.parseInt(parentParam);
+
                         int no = 1;
-                        try (PreparedStatement s = db.prepareStatement(
-                                "SELECT NVL(MAX(comment_no), 0) + 1 FROM PAPER_COMMENT WHERE group_paper_id = ?")) {
-                            s.setInt(1, groupPaperId);
-                            try (ResultSet r = s.executeQuery()) {
-                                if (r.next()) {
-                                    no = r.getInt(1);
+                        db.setAutoCommit(false);
+                        try {
+
+                            try (PreparedStatement s = db.prepareStatement(
+                                    "SELECT group_paper_id FROM GROUP_PAPER WHERE group_paper_id = ? FOR UPDATE")) {
+                                s.setInt(1, groupPaperId);
+                                s.executeQuery();
+                            }
+
+
+                            if (highlightNo != null) {
+                                try (PreparedStatement s = db.prepareStatement(
+                                        "SELECT 1 FROM HIGHLIGHT WHERE group_paper_id = ? AND highlight_no = ?")) {
+                                    s.setInt(1, groupPaperId);
+                                    s.setInt(2, highlightNo);
+                                    try (ResultSet r = s.executeQuery()) {
+                                        if (!r.next()) {
+                                            message = "이 논문에 없는 하이라이트입니다.";
+                                            ok = false;
+                                        }
+                                    }
                                 }
                             }
+                            if (ok && parentNo != null) {
+                                try (PreparedStatement s = db.prepareStatement(
+                                        "SELECT 1 FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
+                                    s.setInt(1, groupPaperId);
+                                    s.setInt(2, parentNo);
+                                    try (ResultSet r = s.executeQuery()) {
+                                        if (!r.next()) {
+                                            message = "이 논문에 없는 댓글에는 답글을 달 수 없습니다.";
+                                            ok = false;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (ok) {
+
+                                try (PreparedStatement s = db.prepareStatement(
+                                        "SELECT NVL(MAX(comment_no), 0) + 1 FROM PAPER_COMMENT WHERE group_paper_id = ?")) {
+                                    s.setInt(1, groupPaperId);
+                                    try (ResultSet r = s.executeQuery()) {
+                                        if (r.next()) {
+                                            no = r.getInt(1);
+                                        }
+                                    }
+                                }
+
+                                try (PreparedStatement s = db.prepareStatement("""
+                                        INSERT INTO PAPER_COMMENT
+                                        (group_paper_id, comment_no, user_id, highlight_no, parent_comment_no, content, created_at)
+                                        VALUES (?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
+                                        """)) {
+                                    s.setInt(1, groupPaperId);
+                                    s.setInt(2, no);
+                                    s.setInt(3, userId);
+                                    if (highlightNo == null) s.setNull(4, Types.INTEGER); else s.setInt(4, highlightNo);
+                                    if (parentNo == null) s.setNull(5, Types.INTEGER); else s.setInt(5, parentNo);
+                                    s.setString(6, content);
+                                    s.executeUpdate();
+                                }
+                                db.commit();
+                            } else {
+                                db.rollback();
+                            }
+                        } catch (SQLException e) {
+                            db.rollback();
+                            throw e;
+                        } finally {
+                            db.setAutoCommit(true);
                         }
 
-                        try (PreparedStatement s = db.prepareStatement("""
-                                INSERT INTO PAPER_COMMENT
-                                (group_paper_id, comment_no, user_id, highlight_no, parent_comment_no, content, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
-                                """)) {
-                            s.setInt(1, groupPaperId);
-                            s.setInt(2, no);
-                            s.setInt(3, userId);
-                            if (highlightNo == null) s.setNull(4, Types.INTEGER); else s.setInt(4, highlightNo);
-                            if (parentNo == null) s.setNull(5, Types.INTEGER); else s.setInt(5, parentNo);
-                            s.setString(6, content);
-                            s.executeUpdate();
+                        if (ok) {
+                            createdNo = no;
+                            message = "댓글 #" + no + "을(를) 작성했어요.";
+                            highlightParam = parentParam = content = null;
                         }
-
-                        createdNo = no;
-                        message = "댓글 #" + no + "을(를) 작성했어요.";
-                        highlightParam = parentParam = content = null;
                     }
                 }
 
