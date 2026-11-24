@@ -68,101 +68,118 @@
                     } else {
                         int commentNo = Integer.parseInt(commentParam);
 
+                        db.setAutoCommit(false);
+                        try {
 
-                        boolean mine = false;
-                        Integer parentNo = null;
-                        try (PreparedStatement s = db.prepareStatement("""
-                                SELECT parent_comment_no FROM PAPER_COMMENT
-                                WHERE group_paper_id = ? AND comment_no = ? AND user_id = ? AND content <> ?
-                                """)) {
-                            s.setInt(1, groupPaperId);
-                            s.setInt(2, commentNo);
-                            s.setInt(3, userId);
-                            s.setString(4, DELETED);
-                            try (ResultSet r = s.executeQuery()) {
-                                if (r.next()) {
-                                    mine = true;
-                                    int p = r.getInt(1);
-                                    parentNo = r.wasNull() ? null : p;
-                                }
-                            }
-                        }
-
-                        if (!mine) {
-                            message = "본인이 작성한 댓글만 삭제할 수 있습니다.";
-                        } else {
-
-                            int replies = 0;
                             try (PreparedStatement s = db.prepareStatement(
-                                    "SELECT COUNT(*) FROM PAPER_COMMENT WHERE group_paper_id = ? AND parent_comment_no = ?")) {
+                                    "SELECT group_paper_id FROM GROUP_PAPER WHERE group_paper_id = ? FOR UPDATE")) {
+                                s.setInt(1, groupPaperId);
+                                s.executeQuery();
+                            }
+
+
+                            boolean mine = false;
+                            Integer parentNo = null;
+                            try (PreparedStatement s = db.prepareStatement("""
+                                    SELECT parent_comment_no FROM PAPER_COMMENT
+                                    WHERE group_paper_id = ? AND comment_no = ? AND user_id = ? AND content <> ?
+                                    """)) {
                                 s.setInt(1, groupPaperId);
                                 s.setInt(2, commentNo);
+                                s.setInt(3, userId);
+                                s.setString(4, DELETED);
                                 try (ResultSet r = s.executeQuery()) {
                                     if (r.next()) {
-                                        replies = r.getInt(1);
+                                        mine = true;
+                                        int p = r.getInt(1);
+                                        parentNo = r.wasNull() ? null : p;
                                     }
                                 }
                             }
 
-                            if (replies > 0) {
-
-                                try (PreparedStatement s = db.prepareStatement(
-                                        "UPDATE PAPER_COMMENT SET content = ? WHERE group_paper_id = ? AND comment_no = ?")) {
-                                    s.setString(1, DELETED);
-                                    s.setInt(2, groupPaperId);
-                                    s.setInt(3, commentNo);
-                                    s.executeUpdate();
-                                }
-                                message = "답글이 있어서 댓글 #" + commentNo + "은(는) '삭제된 댓글입니다'로 표시했어요.";
+                            if (!mine) {
+                                message = "본인이 작성한 댓글만 삭제할 수 있습니다.";
                             } else {
 
+                                int replies = 0;
                                 try (PreparedStatement s = db.prepareStatement(
-                                        "DELETE FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
+                                        "SELECT COUNT(*) FROM PAPER_COMMENT WHERE group_paper_id = ? AND parent_comment_no = ?")) {
                                     s.setInt(1, groupPaperId);
                                     s.setInt(2, commentNo);
-                                    s.executeUpdate();
-                                }
-
-
-                                Integer p = parentNo;
-                                while (p != null) {
-                                    String content = null;
-                                    Integer grandParent = null;
-                                    int left = 0;
-                                    try (PreparedStatement s = db.prepareStatement("""
-                                            SELECT C.content, C.parent_comment_no,
-                                                   (SELECT COUNT(*) FROM PAPER_COMMENT R
-                                                    WHERE R.group_paper_id = C.group_paper_id
-                                                      AND R.parent_comment_no = C.comment_no)
-                                            FROM PAPER_COMMENT C
-                                            WHERE C.group_paper_id = ? AND C.comment_no = ?
-                                            """)) {
-                                        s.setInt(1, groupPaperId);
-                                        s.setInt(2, p);
-                                        try (ResultSet r = s.executeQuery()) {
-                                            if (r.next()) {
-                                                content = r.getString(1);
-                                                int g = r.getInt(2);
-                                                grandParent = r.wasNull() ? null : g;
-                                                left = r.getInt(3);
-                                            }
+                                    try (ResultSet r = s.executeQuery()) {
+                                        if (r.next()) {
+                                            replies = r.getInt(1);
                                         }
                                     }
-                                    if (DELETED.equals(content) && left == 0) {
-                                        try (PreparedStatement s = db.prepareStatement(
-                                                "DELETE FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
+                                }
+
+                                if (replies > 0) {
+
+                                    try (PreparedStatement s = db.prepareStatement(
+                                            "UPDATE PAPER_COMMENT SET content = ? WHERE group_paper_id = ? AND comment_no = ?")) {
+                                        s.setString(1, DELETED);
+                                        s.setInt(2, groupPaperId);
+                                        s.setInt(3, commentNo);
+                                        s.executeUpdate();
+                                    }
+                                    message = "답글이 있어서 댓글 #" + commentNo + "은(는) '삭제된 댓글입니다'로 표시했어요.";
+                                } else {
+
+                                    try (PreparedStatement s = db.prepareStatement(
+                                            "DELETE FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
+                                        s.setInt(1, groupPaperId);
+                                        s.setInt(2, commentNo);
+                                        s.executeUpdate();
+                                    }
+
+
+                                    Integer p = parentNo;
+                                    while (p != null) {
+                                        String content = null;
+                                        Integer grandParent = null;
+                                        int left = 0;
+                                        try (PreparedStatement s = db.prepareStatement("""
+                                                SELECT C.content, C.parent_comment_no,
+                                                       (SELECT COUNT(*) FROM PAPER_COMMENT R
+                                                        WHERE R.group_paper_id = C.group_paper_id
+                                                          AND R.parent_comment_no = C.comment_no)
+                                                FROM PAPER_COMMENT C
+                                                WHERE C.group_paper_id = ? AND C.comment_no = ?
+                                                """)) {
                                             s.setInt(1, groupPaperId);
                                             s.setInt(2, p);
-                                            s.executeUpdate();
+                                            try (ResultSet r = s.executeQuery()) {
+                                                if (r.next()) {
+                                                    content = r.getString(1);
+                                                    int g = r.getInt(2);
+                                                    grandParent = r.wasNull() ? null : g;
+                                                    left = r.getInt(3);
+                                                }
+                                            }
                                         }
-                                        p = grandParent;
-                                    } else {
-                                        break;
+                                        if (DELETED.equals(content) && left == 0) {
+                                            try (PreparedStatement s = db.prepareStatement(
+                                                    "DELETE FROM PAPER_COMMENT WHERE group_paper_id = ? AND comment_no = ?")) {
+                                                s.setInt(1, groupPaperId);
+                                                s.setInt(2, p);
+                                                s.executeUpdate();
+                                            }
+                                            p = grandParent;
+                                        } else {
+                                            break;
+                                        }
                                     }
+                                    message = "댓글 #" + commentNo + "을(를) 삭제했어요.";
                                 }
-                                message = "댓글 #" + commentNo + "을(를) 삭제했어요.";
+                                commentParam = null;
                             }
-                            commentParam = null;
+
+                            db.commit();
+                        } catch (SQLException e) {
+                            db.rollback();
+                            throw e;
+                        } finally {
+                            db.setAutoCommit(true);
                         }
                     }
                 }
