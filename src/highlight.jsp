@@ -83,31 +83,48 @@
                         message = "페이지는 1 이상, 시작 위치는 0 이상, 끝 위치는 시작 위치보다 커야 합니다.";
                     } else {
                         int no = 1;
-                        try (PreparedStatement s = db.prepareStatement(
-                                "SELECT NVL(MAX(highlight_no), 0) + 1 FROM HIGHLIGHT WHERE group_paper_id = ?")) {
-                            s.setInt(1, groupPaperId);
-                            try (ResultSet r = s.executeQuery()) {
-                                if (r.next()) {
-                                    no = r.getInt(1);
+                        db.setAutoCommit(false);
+                        try {
+                            try (PreparedStatement s = db.prepareStatement(
+                                    "SELECT group_paper_id FROM GROUP_PAPER WHERE group_paper_id = ? FOR UPDATE")) {
+                                s.setInt(1, groupPaperId);
+                                s.executeQuery();
+                            }
+
+
+                            try (PreparedStatement s = db.prepareStatement(
+                                    "SELECT NVL(MAX(highlight_no), 0) + 1 FROM HIGHLIGHT WHERE group_paper_id = ?")) {
+                                s.setInt(1, groupPaperId);
+                                try (ResultSet r = s.executeQuery()) {
+                                    if (r.next()) {
+                                        no = r.getInt(1);
+                                    }
                                 }
                             }
-                        }
 
-                        try (PreparedStatement s = db.prepareStatement("""
-                                INSERT INTO HIGHLIGHT
-                                (group_paper_id, highlight_no, user_id, page_no, start_position,
-                                 end_position, color, selected_text, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
-                                """)) {
-                            s.setInt(1, groupPaperId);
-                            s.setInt(2, no);
-                            s.setInt(3, userId);
-                            s.setInt(4, pageNo);
-                            s.setInt(5, start);
-                            s.setInt(6, end);
-                            s.setString(7, color);
-                            s.setString(8, selectedText);
-                            s.executeUpdate();
+                            try (PreparedStatement s = db.prepareStatement("""
+                                    INSERT INTO HIGHLIGHT
+                                    (group_paper_id, highlight_no, user_id, page_no, start_position,
+                                     end_position, color, selected_text, created_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
+                                    """)) {
+                                s.setInt(1, groupPaperId);
+                                s.setInt(2, no);
+                                s.setInt(3, userId);
+                                s.setInt(4, pageNo);
+                                s.setInt(5, start);
+                                s.setInt(6, end);
+                                s.setString(7, color);
+                                s.setString(8, selectedText);
+                                s.executeUpdate();
+                            }
+
+                            db.commit();
+                        } catch (SQLException e) {
+                            db.rollback();
+                            throw e;
+                        } finally {
+                            db.setAutoCommit(true);
                         }
 
                         createdNo = no;
