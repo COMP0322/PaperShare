@@ -9,27 +9,38 @@
     }
 %>
 <%
+    String message = null;
     if ("POST".equals(request.getMethod())) {
         try (Connection db = openDb()) {
             db.setAutoCommit(false);
             try {
                 int paper = querySQL(db, "SELECT paper_seq.NEXTVAL FROM dual");
-                updateSQL(db, "INSERT INTO PAPER VALUES (?, ?, ?, ?, ?, ?, ?)", paper,
-                        request.getParameter("title"), request.getParameter("authors"),
-                        request.getParameter("year"), request.getParameter("doi"),
-                        request.getParameter("url"), request.getParameter("abstract"));
+                try {
+                    updateSQL(db, "INSERT INTO PAPER VALUES (?, ?, ?, ?, ?, ?, ?)", paper,
+                            request.getParameter("title"), request.getParameter("authors"),
+                            request.getParameter("year"), request.getParameter("doi"),
+                            request.getParameter("url"), request.getParameter("abstract"));
+                } catch (SQLException e) {
+                    if (e.getErrorCode() != 1) throw e;
+                    message = "이미 등록된 DOI입니다.";
+                }
 
-                updateSQL(db, """
-                        INSERT INTO GROUP_PAPER
-                        (group_paper_id, group_id, paper_id, status, added_date, notes)
-                        VALUES (group_paper_seq.NEXTVAL, ?, ?, '읽음', SYSDATE, ?)
-                        """, currentGroup(db, session), paper, request.getParameter("notes"));
-
-                db.commit();
+                if (message == null) {
+                    updateSQL(db, """
+                            INSERT INTO GROUP_PAPER
+                            (group_paper_id, group_id, paper_id, status, added_date, notes)
+                            VALUES (group_paper_seq.NEXTVAL, ?, ?, '읽음', SYSDATE, ?)
+                            """, currentGroup(db, session), paper, request.getParameter("notes"));
+                    db.commit();
+                    message = "논문을 등록했습니다.";
+                }
             } finally {
                 db.rollback();
             }
-        } catch (Exception ignored) {
+        } catch (SQLException | ClassNotFoundException e) {
+            response.setStatus(503);
+            application.log("논문 생성 실패", e);
+            message = "논문을 등록하지 못했습니다. 다시 시도해 주세요.";
         }
     }
 %>
@@ -65,6 +76,9 @@
             <div class="panel-heading">
                 <div><h2>논문 정보 입력</h2><p>논문 정보와 함께 남길 메모를 작성하세요</p></div>
             </div>
+            <% if (message != null) { %>
+            <p class="notice" role="status"><%= escapeHtml(message) %></p>
+            <% } %>
             <form method="post" class="task-form">
             <div class="form-grid">
                 <div class="form-field form-field--wide">
