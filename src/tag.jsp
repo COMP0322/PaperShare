@@ -67,8 +67,14 @@
                         s.setInt(1, paperId);
                         s.setInt(2, tagId);
                         s.executeUpdate();
+                        message = "태그를 추가했어요.";
+                    } catch (SQLException e) {
+                        if (e.getErrorCode() == 1) {
+                            message = "이미 붙어 있는 태그예요. 다른 그룹원이 먼저 추가했을 수 있어요.";
+                        } else {
+                            throw e;
+                        }
                     }
-                    message = "태그를 추가했어요.";
                 }
                 try (PreparedStatement s = db.prepareStatement("""
 
