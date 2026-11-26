@@ -23,6 +23,7 @@ CREATE TABLE PAPER (
     url             VARCHAR2(100)   NOT NULL,
     abstract        VARCHAR2(4000)  NOT NULL,
     PRIMARY KEY (paper_id),
+    UNIQUE (DOI),
     CHECK (year >= 1 AND year <= 9999)
 );
 

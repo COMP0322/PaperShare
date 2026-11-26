@@ -1,0 +1,28 @@
+<%@ page import="java.util.LinkedHashMap,java.util.UUID" %>
+<%!
+    @SuppressWarnings("unchecked")
+    private LinkedHashMap<String, String> pendingSubmissions(HttpSession session) {
+        return (LinkedHashMap<String, String>) session.getAttribute("pendingSubmissions");
+    }
+
+    private String issueSubmissionToken(HttpSession session, String action) {
+        synchronized (session) {
+            LinkedHashMap<String, String> pending = pendingSubmissions(session);
+            if (pending == null) {
+                pending = new LinkedHashMap<>();
+                session.setAttribute("pendingSubmissions", pending);
+            }
+            if (pending.size() >= 32) pending.remove(pending.keySet().iterator().next());
+            String token = UUID.randomUUID().toString();
+            pending.put(token, action);
+            return token;
+        }
+    }
+
+    private boolean consumeSubmissionToken(HttpSession session, String action, String token) {
+        synchronized (session) {
+            LinkedHashMap<String, String> pending = pendingSubmissions(session);
+            return pending != null && pending.remove(token, action);
+        }
+    }
+%>
