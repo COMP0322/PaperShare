@@ -13,6 +13,7 @@
     String groupPaperParam = request.getParameter("groupPaperId");
     String commentParam = request.getParameter("commentNo");
     String newContent = request.getParameter("content");
+    String versionParam = request.getParameter("version");
 
     Integer groupPaperId = null;
     String title = null;
@@ -72,30 +73,56 @@
                     } else {
                         try (PreparedStatement s = db.prepareStatement("""
                                 UPDATE PAPER_COMMENT SET content = ?, updated_at = SYSTIMESTAMP
-                                WHERE group_paper_id = ? AND comment_no = ? AND user_id = ? AND content <> '(삭제된 댓글입니다)'
+                                WHERE group_paper_id = ? AND comment_no = ? AND user_id = ?
+                                  AND content <> '(삭제된 댓글입니다)'
+                                  AND TO_CHAR(NVL(updated_at, created_at), 'YYYYMMDDHH24MISSFF6') = ?
                                 """)) {
                             s.setString(1, newContent);
                             s.setInt(2, groupPaperId);
                             s.setInt(3, Integer.parseInt(commentParam));
                             s.setInt(4, userId);
+                            s.setString(5, versionParam);
                             int changed = s.executeUpdate();
-                            message = (changed == 1)
-                                    ? "댓글 #" + commentParam + "을(를) 수정했어요."
-                                    : "본인이 작성한 댓글만 수정할 수 있습니다.";
+
+                            if (changed == 1) {
+                                message = "댓글 #" + commentParam + "을(를) 수정했어요.";
+                            } else {
+
+                                try (PreparedStatement c = db.prepareStatement("""
+                                        SELECT content FROM PAPER_COMMENT
+                                        WHERE group_paper_id = ? AND comment_no = ? AND user_id = ?
+                                        """)) {
+                                    c.setInt(1, groupPaperId);
+                                    c.setInt(2, Integer.parseInt(commentParam));
+                                    c.setInt(3, userId);
+                                    try (ResultSet r = c.executeQuery()) {
+                                        if (!r.next()) {
+                                            message = "본인이 작성한 댓글만 수정할 수 있습니다.";
+                                        } else if ("(삭제된 댓글입니다)".equals(r.getString(1))) {
+                                            message = "삭제된 댓글은 수정할 수 없습니다.";
+                                        } else {
+                                            message = "다른 곳에서 이 댓글이 먼저 수정됐어요. 최신 내용을 확인한 뒤 다시 수정하세요.";
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
 
                 try (PreparedStatement s = db.prepareStatement("""
-                        SELECT comment_no, content FROM PAPER_COMMENT
-                        WHERE group_paper_id = ? AND user_id = ? AND content <> '(삭제된 댓글입니다)' ORDER BY comment_no
+                        SELECT comment_no, content,
+                               TO_CHAR(NVL(updated_at, created_at), 'YYYYMMDDHH24MISSFF6')
+                        FROM PAPER_COMMENT
+                        WHERE group_paper_id = ? AND user_id = ? AND content <> '(삭제된 댓글입니다)'
+                        ORDER BY comment_no
                         """)) {
                     s.setInt(1, groupPaperId);
                     s.setInt(2, userId);
                     try (ResultSet r = s.executeQuery()) {
                         while (r.next()) {
-                            String[] c = { r.getString(1), r.getString(2) };
+                            String[] c = { r.getString(1), r.getString(2), r.getString(3) };
                             myComments.add(c);
                             if (c[0].equals(commentParam)) {
                                 selected = c;
@@ -155,6 +182,7 @@
         <h2>1. 수정할 댓글 고르기</h2>
         <form action="editComment.jsp" method="get" class="ec-form">
             <input type="hidden" name="groupPaperId" value="<%= groupPaperId %>">
+
             <label>내 댓글
                 <select name="commentNo" required onchange="this.form.submit()">
                     <option value="">선택하세요</option>
@@ -172,6 +200,7 @@
         <form action="editComment.jsp" method="post" class="ec-form">
             <input type="hidden" name="groupPaperId" value="<%= groupPaperId %>">
             <input type="hidden" name="commentNo" value="<%= escapeHtml(selected[0]) %>">
+            <input type="hidden" name="version" value="<%= escapeHtml(selected[2]) %>">
             <label>내용
                 <textarea name="content" maxlength="1000" required><%= escapeHtml(selected[1]) %></textarea>
             </label>
