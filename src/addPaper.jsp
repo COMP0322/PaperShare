@@ -42,8 +42,14 @@
                         s.setInt(2, paperId);
                         s.setString(3, notes);
                         s.executeUpdate();
+                        message = "논문을 그룹에 추가했어요.";
+                    } catch (SQLException e) {
+                        if (e.getErrorCode() == 1) {
+                            message = "이미 그룹에 등록된 논문이에요. 다른 그룹원이 먼저 추가했을 수 있어요.";
+                        } else {
+                            throw e;
+                        }
                     }
-                    message = "논문을 그룹에 추가했어요.";
                 }
             }
             String sql = """
