@@ -1,13 +1,20 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ include file="/WEB-INF/common.jspf" %>
 <%
+    String message = null;
+    List<String[]> groups = new ArrayList<>();
     try (Connection db = openDb()) {
         if ("POST".equals(request.getMethod())) {
             int group = Integer.parseInt(request.getParameter("groupId"));
-            updateSQL(db, "INSERT INTO MEMBER_OF VALUES (?, ?, 'MEMBER')",
-                    session.getAttribute("userId"),
-                    group);
-            session.setAttribute("groupId", group);
+            try {
+                updateSQL(db, "INSERT INTO MEMBER_OF VALUES (?, ?, 'MEMBER')",
+                        session.getAttribute("userId"), group);
+                session.setAttribute("groupId", group);
+                message = "그룹에 가입했습니다.";
+            } catch (SQLException e) {
+                if (e.getErrorCode() != 1) throw e;
+                message = "이미 가입한 그룹입니다.";
+            }
         }
 
         try (PreparedStatement s = prepare(db, """
@@ -17,6 +24,18 @@
                 ORDER BY G.group_id
                 """, session.getAttribute("userId"));
              ResultSet r = s.executeQuery()) {
+            while (r.next()) {
+                groups.add(new String[] { r.getString(1), r.getString(2), r.getString(3) });
+            }
+        }
+    } catch (NumberFormatException e) {
+        response.setStatus(400);
+        message = "그룹 ID를 올바르게 입력해 주세요.";
+    } catch (SQLException | ClassNotFoundException e) {
+        response.setStatus(503);
+        application.log("그룹 가입 화면 처리 실패", e);
+        message = "그룹 가입 화면을 처리하지 못했습니다. 다시 시도해 주세요.";
+    }
 %>
 <!doctype html>
 <html lang="ko">
@@ -50,6 +69,9 @@
             <div class="panel-heading">
                 <div><h2>참여할 그룹 선택</h2><p>목록에서 가입할 그룹 ID를 확인하세요</p></div>
             </div>
+            <% if (message != null) { %>
+            <p class="notice" role="status"><%= escapeHtml(message) %></p>
+            <% } %>
             <form method="post" class="task-form">
             <div class="form-grid">
                 <div class="form-field">
@@ -66,16 +88,16 @@
 <table class="data-table">
     <thead>
     <tr>
-    <% for (int i = 1; i <= r.getMetaData().getColumnCount(); i++) { %>
-        <th><%= escapeHtml(r.getMetaData().getColumnLabel(i)) %></th>
-    <% } %>
+        <th>GROUP_ID</th>
+        <th>GROUP_NAME</th>
+        <th>DESCRIPTION</th>
     </tr>
     </thead>
     <tbody>
-    <% while (r.next()) { %>
+    <% for (String[] group : groups) { %>
     <tr>
-        <% for (int i = 1; i <= r.getMetaData().getColumnCount(); i++) { %>
-        <td><%= escapeHtml(r.getString(i)) %></td>
+        <% for (String value : group) { %>
+        <td><%= escapeHtml(value) %></td>
         <% } %>
     </tr>
     <% } %>
@@ -88,8 +110,3 @@
     <footer class="site-footer"><span>PaperShare.</span><span>함께 읽는 즐거움, 함께 쌓는 지식.</span></footer>
 </body>
 </html>
-<%
-        }
-    } catch (Exception ignored) {
-    }
-%>
