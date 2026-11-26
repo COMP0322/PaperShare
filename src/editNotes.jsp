@@ -17,6 +17,10 @@
     String newNotes = request.getParameter("notes");
     String newStatus = request.getParameter("status");
 
+    String versionParam = request.getParameter("version");
+    String version = null;
+
+
 
     try (Connection db = openDb()) {
         if (groupId == null) {
@@ -42,7 +46,9 @@
             groupPaperId = Integer.parseInt(groupPaperParam);
 
             String checkSql = """
-                    SELECT P.title, GP.notes, GP.status, TO_CHAR(GP.started_date, 'YYYY-MM-DD'), TO_CHAR(GP.completed_date, 'YYYY-MM-DD')
+                    SELECT P.title, GP.notes, GP.status,
+                           TO_CHAR(GP.started_date, 'YYYY-MM-DD'), TO_CHAR(GP.completed_date, 'YYYY-MM-DD'),
+                           TO_CHAR(ORA_HASH(GP.notes)) || ':' || GP.status
                     FROM GROUP_PAPER GP JOIN PAPER P ON P.paper_id = GP.paper_id
                     JOIN MEMBER_OF M ON M.group_id = GP.group_id
                     WHERE GP.group_paper_id = ? AND GP.group_id = ? AND M.user_id = ?
@@ -59,6 +65,7 @@
                         status = r.getString(3);
                         startedDate = r.getString(4);
                         completedDate = r.getString(5);
+                        version = r.getString(6);
                     }
                 }
             }
@@ -72,19 +79,27 @@
                 } else if (!"읽음".equals(newStatus) && !"리뷰중".equals(newStatus) && !"완료".equals(newStatus)) {
                     message = "상태는 읽음, 리뷰중, 완료 중 하나여야 합니다.";
                 } else {
+                    int changed;
                     try (PreparedStatement s = db.prepareStatement("""
                             UPDATE GROUP_PAPER SET notes = ?, status = ?,
                                 started_date = CASE WHEN ? = '읽음' THEN NULL ELSE NVL(started_date, SYSDATE) END,
                                 completed_date = CASE WHEN ? = '완료' THEN SYSDATE ELSE NULL END
                             WHERE group_paper_id = ?
+                              AND TO_CHAR(ORA_HASH(notes)) || ':' || status = ?
                             """)) {
                         s.setString(1, newNotes);
                         s.setString(2, newStatus);
                         s.setString(3, newStatus);
                         s.setString(4, newStatus);
                         s.setInt(5, groupPaperId);
-                        s.executeUpdate();
+                        s.setString(6, versionParam);
+                        changed = s.executeUpdate();
                     }
+
+                    message = (changed == 1)
+                            ? "그룹 메모와 상태를 저장했어요."
+                            : "다른 그룹원이 먼저 수정했어요. 아래 최신 내용을 확인한 뒤 다시 저장하세요.";
+
 
                     try (PreparedStatement s = db.prepareStatement(checkSql)) {
                         s.setInt(1, groupPaperId);
@@ -96,17 +111,17 @@
                                 status = r.getString(3);
                                 startedDate = r.getString(4);
                                 completedDate = r.getString(5);
+                                version = r.getString(6);
                             }
                         }
                     }
-                    message = "그룹 메모와 상태를 저장했어요.";
                 }
             }
         }
     } catch (SQLException | ClassNotFoundException e) {
         response.setStatus(503);
-        application.log("태그 조회 실패", e);
-        message = "태그를 불러오지 못했습니다. Tomcat 실행 로그와 DB 연결 설정을 확인하세요.";
+        application.log("그룹 메모 수정 실패", e);
+        message = "그룹 메모를 불러오지 못했습니다. Tomcat 실행 로그와 DB 연결 설정을 확인하세요.";
     }
 
     String backHref = (title != null) ? "paperDetail.jsp?groupPaperId=" + groupPaperId : "paperDetail.jsp";
@@ -159,6 +174,7 @@
         <h2>수정하기</h2>
         <form action="editNotes.jsp" method="post" class="notes-form">
             <input type="hidden" name="groupPaperId" value="<%= groupPaperId %>">
+            <input type="hidden" name="version" value="<%= escapeHtml(version) %>">
             <label for="notes">그룹 메모</label>
             <textarea id="notes" name="notes" required><%= escapeHtml(notes) %></textarea>
             <label for="status">상태</label>
