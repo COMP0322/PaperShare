@@ -1,0 +1,7 @@
+1. GitHub Repository
+
+https://github.com/COMP0322/PaperShare
+
+2. Contributors Graph
+
+https://github.com/COMP0322/PaperShare/graphs/contributors
